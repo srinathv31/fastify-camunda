@@ -1,6 +1,5 @@
 import { InVars, OutVars } from "./schema";
 import { FastifyInstance } from "fastify";
-import { request } from "undici";
 
 /**
  * Service implementation for the prepare-response task. This is the final
@@ -40,7 +39,7 @@ export async function prepareResponseService(
     // Call the process/complete endpoint to finalize the process
     // Using localhost since we're calling our own API
     const port = ctx.app.config?.PORT ?? 8080;
-    const response = await request(
+    const response = await fetch(
       `http://localhost:${port}/api/process/complete`,
       {
         method: "POST",
@@ -56,9 +55,9 @@ export async function prepareResponseService(
       }
     );
 
-    if (response.statusCode !== 200) {
+    if (!response.ok) {
       ctx.app.log.error(
-        { correlationId, statusCode: response.statusCode },
+        { correlationId, statusCode: response.status },
         "failed to call process/complete endpoint"
       );
     } else {
