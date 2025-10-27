@@ -2,11 +2,11 @@
   "name": "fastify-camunda",
   "version": "1.0.0",
   "description": "Fastify Camunda worker for the onboard-user process",
-  "main": "dist/start.js",
+  "main": "dist/src/start.js",
   "scripts": {
     "build": "tsc",
     "dev": "nodemon --watch 'src/**/*.ts' --exec ts-node src/start.ts",
-    "start": "node dist/start.js",
+    "start": "node dist/src/start.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage"
