@@ -1,13 +1,14 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Input variables for the validate-user-information task. The external task
  * will provide these variables from the BPMN process. Additional
  * variables can be added here as your process evolves.
+ * Note: System variables like application_id, batch_id, traceability_id are
+ * extracted separately by subscribeTopic and don't need to be in the schema.
  */
 export const InVars = z.object({
   userId: z.string(),
-  applicationId: z.string().uuid(),
 });
 
 export type InVars = z.infer<typeof InVars>;

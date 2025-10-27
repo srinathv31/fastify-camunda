@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from "fastify";
+import { randomUUID } from "crypto";
 import { createWait } from "../../lib/waitroom";
 import { startProcessInstance } from "../../services/camunda-rest.service";
 
@@ -37,6 +38,14 @@ const startRoute: FastifyPluginAsync = async (app) => {
       const { processKey, correlationId, variables } = req.body;
       const SYNC_TIMEOUT_MS = app.config.SYNC_TIMEOUT_MS;
 
+      // Generate per-request execution context IDs
+      const batch_id = randomUUID();
+      const traceability_id = randomUUID();
+      const application_id = randomUUID();
+
+      // Initialize identifiers object with applicationId
+      const identifiers = { applicationId: application_id };
+
       // Save initial status to process store
       await app.processStore.save(correlationId, {
         status: "pending",
@@ -46,9 +55,13 @@ const startRoute: FastifyPluginAsync = async (app) => {
       });
 
       try {
-        // Convert variables to Camunda format
+        // Convert variables to Camunda format, including execution context
         const camundaVars: Record<string, { value: any; type: string }> = {
           correlationId: { value: correlationId, type: "String" },
+          batch_id: { value: batch_id, type: "String" },
+          traceability_id: { value: traceability_id, type: "String" },
+          application_id: { value: application_id, type: "String" },
+          identifiers: { value: identifiers, type: "Json" },
         };
 
         if (variables) {

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Input variables for the call-onboarding-api task. It receives the
@@ -18,11 +18,13 @@ export type InVars = z.infer<typeof InVars>;
 /**
  * Output variables for the call-onboarding-api task. The boolean
  * `onboarded` indicates success and an optional `reason` explains
- * failures.
+ * failures. The optional `customerId` is an example of an identifier
+ * that will be automatically added to the identifiers object.
  */
 export const OutVars = z.object({
   onboarded: z.boolean(),
   reason: z.string().optional(),
+  customerId: z.string().optional(),
 });
 
 export type OutVars = z.infer<typeof OutVars>;

@@ -2,21 +2,22 @@
  * A minimal HTTP client wrapper. In production you might use a library
  * like `undici` or `axios` to perform HTTP requests. These methods
  * return a response object with a `body` property containing the parsed
- * JSON. They are stubbed here for demonstration purposes.
+ * JSON and a `statusCode` for the HTTP response code. They are stubbed
+ * here for demonstration purposes.
  */
 export const http = {
   async get(
     _path: string,
     _opts?: Record<string, unknown>
-  ): Promise<{ body: any }> {
+  ): Promise<{ body: any; statusCode: number }> {
     // TODO: Replace with real HTTP GET request implementation.
-    return { body: {} };
+    return { body: {}, statusCode: 200 };
   },
   async post(
     _path: string,
     _opts?: Record<string, unknown>
-  ): Promise<{ body: any }> {
+  ): Promise<{ body: any; statusCode: number }> {
     // TODO: Replace with real HTTP POST request implementation.
-    return { body: {} };
+    return { body: {}, statusCode: 200 };
   },
 };
