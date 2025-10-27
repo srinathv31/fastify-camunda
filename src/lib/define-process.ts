@@ -71,8 +71,9 @@ export function defineProcess<const TSteps extends readonly string[]>(
     >;
 
     stepsInOrder.forEach((stepName, index) => {
-      const cfg = config[stepName];
-      compiled[stepName] = {
+      const name = stepName as StepName;
+      const cfg = config[name];
+      compiled[name] = {
         step: index + 1, // 1-based indexing
         stepName: stepName as string,
         http_method: cfg.http_method ?? null,

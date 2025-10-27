@@ -152,9 +152,21 @@ export function subscribeTopic<I, O>(
         }
       }
 
+      // Filter out undefined values from the output to avoid polluting process variables
+      const cleanedOut: Record<string, unknown> = {};
+      if (out && typeof out === "object") {
+        for (const [key, value] of Object.entries(
+          out as Record<string, unknown>
+        )) {
+          if (value !== undefined) {
+            cleanedOut[key] = value;
+          }
+        }
+      }
+
       // Complete the task with output variables and updated identifiers
       await completeWith(taskService, task, {
-        ...(out as unknown as Record<string, unknown>),
+        ...cleanedOut,
         identifiers: updatedIdentifiers,
       });
 
