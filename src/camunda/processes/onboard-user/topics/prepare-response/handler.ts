@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { subscribeTopic } from "../../../../../lib/subscribeTopic";
 import { InVars, OutVars } from "./schema";
 import { prepareResponseService } from "./service";
-import { ONBOARD_USER_STEPS } from "../../shared";
+import { ONBOARD_USER_STEPS, PROCESS_DEFAULTS } from "../../shared";
 
 /**
  * Register the prepare-response topic subscription. This is the final handler
@@ -10,11 +10,11 @@ import { ONBOARD_USER_STEPS } from "../../shared";
  * process/complete endpoint to finalize the process.
  */
 export function registerPrepareResponse(app: FastifyInstance): void {
-  const { step, stepName } = ONBOARD_USER_STEPS["prepare-response"];
+  const stepConfig = ONBOARD_USER_STEPS["prepare-response"];
   subscribeTopic<InVars, OutVars>(app, {
     topic: "onboard-user.prepare-response",
-    step,
-    stepName,
+    stepConfig,
+    processDefaults: PROCESS_DEFAULTS,
     inSchema: InVars,
     service: prepareResponseService,
     resultMessage: () => "response prepared and process completed",
