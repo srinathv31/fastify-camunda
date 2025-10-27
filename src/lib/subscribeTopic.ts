@@ -1,6 +1,6 @@
-import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { readVars, completeWith, toBpmnError } from './camunda';
+import { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { readVars, completeWith, toBpmnError } from "./camunda";
 
 /**
  * Generic subscription helper for Camunda external tasks. This wrapper
@@ -21,7 +21,7 @@ export function subscribeTopic<I, O>(
     inSchema: z.ZodType<I>;
     service: (input: I, ctx: { app: FastifyInstance }) => Promise<O>;
     resultMessage?: (out: O) => string;
-  },
+  }
 ): void {
   const { topic, step, stepName, inSchema, service, resultMessage } = cfg;
   const { camundaClient } = app;
@@ -36,7 +36,7 @@ export function subscribeTopic<I, O>(
       (vars.correlationId as string | undefined) ||
       (vars.traceability_id as string | undefined) ||
       (vars.applicationId as string | undefined) ||
-      'unknown';
+      "unknown";
     const baseLog = { step, stepName, correlationId };
     try {
       // Validate input variables against the provided schema. Zod throws
@@ -46,21 +46,25 @@ export function subscribeTopic<I, O>(
       // services, repositories and plugins.
       const out = await service(parsed, { app });
       // Complete the task with output variables.
-      await completeWith(taskService, task, out as unknown as Record<string, unknown>);
+      await completeWith(
+        taskService,
+        task,
+        out as unknown as Record<string, unknown>
+      );
       // Write a success event log entry.
       await app.eventLog({
         ...baseLog,
-        result: 'success',
+        result: "success",
         message: resultMessage ? resultMessage(out) : `${topic} completed`,
         durationMs: Date.now() - started,
         details: {
           outPreview: Object.fromEntries(
             Object.entries(out as Record<string, unknown>).map(([k, v]) => {
-              if (typeof v === 'string' && v.length > 100) {
-                return [k, v.slice(0, 100) + '…'];
+              if (typeof v === "string" && v.length > 100) {
+                return [k, v.slice(0, 100) + "…"];
               }
-                return [k, v];
-            }),
+              return [k, v];
+            })
           ),
         },
       });
@@ -69,10 +73,10 @@ export function subscribeTopic<I, O>(
       if (bpmn) {
         // Propagate BPMN error back to Camunda. Camunda will catch this and
         // route the process to an error boundary if defined.
-        await taskService.handleBpmnError(task, bpmn.code, bpmn.message, bpmn.details);
+        await taskService.handleBpmnError(task, bpmn.code, bpmn.message);
         await app.eventLog({
           ...baseLog,
-          result: 'bpmn_error',
+          result: "bpmn_error",
           message: bpmn.message,
           durationMs: Date.now() - started,
           details: bpmn.details,
@@ -82,10 +86,14 @@ export function subscribeTopic<I, O>(
       // Unexpected error: treat as technical failure. No retries in this
       // stub implementation (retries=0 means Camunda stops retrying).
       const message = err instanceof Error ? err.message : String(err);
-      await taskService.handleFailure(task, message, 0, 30_000);
+      await taskService.handleFailure(task, {
+        errorMessage: message,
+        retries: 0,
+        retryTimeout: 30_000,
+      });
       await app.eventLog({
         ...baseLog,
-        result: 'failure',
+        result: "failure",
         message,
         durationMs: Date.now() - started,
         details: { error: message },

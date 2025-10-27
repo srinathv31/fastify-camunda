@@ -1,37 +1,54 @@
 fastify-camunda/
 ├─ src/
-│ ├─ server.ts
+│ ├─ server.ts # main app setup with autoload
+│ ├─ start.ts # entry point for production
 │ ├─ plugins/
-│ │ └─ camunda-client.ts
+│ │ ├─ camunda-client.ts
+│ │ ├─ db.ts
+│ │ ├─ env.ts
+│ │ ├─ event-log.ts
+│ │ ├─ logger.ts
+│ │ └─ process-store.ts # NEW: in-memory Map + async DB persistence
 │ ├─ camunda/
 │ │ ├─ index.ts # register all process/topic subscribers
 │ │ └─ processes/
-│ │ └─ customer-signup/ # ← your process
+│ │ └─ onboard-user/ # example process
 │ │ ├─ topics/
-│ │ │ ├─ student-check/
-│ │ │ │ ├─ handler.ts # subscribe('student-check', …)
+│ │ │ ├─ validate-user-information/
+│ │ │ │ ├─ handler.ts # subscribe('validate-user-information', …)
 │ │ │ │ ├─ schema.ts # zod in/out vars
 │ │ │ │ └─ service.ts # business logic for this step
-│ │ │ ├─ free-trial-eligibility/
+│ │ │ ├─ run-background-check/
 │ │ │ │ ├─ handler.ts
 │ │ │ │ ├─ schema.ts
 │ │ │ │ └─ service.ts
-│ │ │ └─ finalize-enrollment/
+│ │ │ ├─ call-onboarding-api/
+│ │ │ │ ├─ handler.ts
+│ │ │ │ ├─ schema.ts
+│ │ │ │ └─ service.ts
+│ │ │ └─ prepare-response/ # NEW: final task
 │ │ │ ├─ handler.ts
 │ │ │ ├─ schema.ts
 │ │ │ └─ service.ts
-│ │ └─ shared.ts # small helpers shared only by this process
+│ │ └─ shared.ts # step definitions for this process
 │ ├─ services/ # reusable domain helpers across processes
-│ │ ├─ verification.service.ts # e.g., “isValidStudent(email)”
-│ │ ├─ subscription.service.ts # createSubscription, calcTrialEnd, etc.
-│ │ └─ http.service.ts # got/undici wrapper (timeouts, retry, jitter)
+│ │ ├─ http.service.ts # got/undici wrapper (timeouts, retry, jitter)
+│ │ ├─ mssql.service.ts
+│ │ └─ camunda-rest.service.ts # NEW: Camunda REST API client
 │ ├─ repositories/ # DB access & event logging
 │ │ ├─ user.repo.ts
-│ │ └─ event-log.repo.ts
+│ │ ├─ event-log.repo.ts
+│ │ └─ process-store.repo.ts # NEW: process store DB operations
 │ ├─ lib/
 │ │ ├─ camunda.ts # readVars/completeWith/handle errors
 │ │ ├─ errors.ts # BusinessRuleError, etc.
-│ │ └─ util.ts
-│ └─ routes/
-│ └─ v1/processes.ts # optional: start sync bridge, status, etc.
+│ │ ├─ subscribeTopic.ts # generic subscription wrapper
+│ │ ├─ util.ts
+│ │ ├─ waitroom.ts # NEW: Promise-based waiting pattern
+│ │ └─ process-store.ts # NEW: in-memory Map interface
+│ └─ routes/ # NEW: REST API routes (auto-loaded)
+│ └─ process/
+│ ├─ start.ts # POST /api/process/start
+│ ├─ status.ts # GET /api/process/status/:id & /all
+│ └─ complete.ts # POST /api/process/complete
 └─ test/… # unit tests for service.ts & handler.ts

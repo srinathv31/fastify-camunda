@@ -12,10 +12,12 @@
     "test:cov": "jest --coverage"
   },
   "dependencies": {
+    "@fastify/autoload": "^5.7.1",
     "camunda-external-task-client-js": "^3.1.0",
     "fastify": "^4.15.0",
     "fastify-plugin": "^4.5.0",
     "pino": "^8.15.0",
+    "undici": "^5.28.0",
     "zod": "^3.22.2"
   },
   "devDependencies": {

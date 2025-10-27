@@ -9,3 +9,7 @@ node_modules
 .env.production
 
 .DS_Store
+
+coverage
+dist
+test-results

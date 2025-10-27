@@ -1,10 +1,13 @@
-import fastify from 'fastify';
-import env from './plugins/env';
-import logger from './plugins/logger';
-import db from './plugins/db';
-import eventLog from './plugins/event-log';
-import camundaClient from './plugins/camunda-client';
-import { registerCamundaSubscriptions } from './camunda';
+import fastify from "fastify";
+import autoload from "@fastify/autoload";
+import { join } from "path";
+import env from "./plugins/env";
+import logger from "./plugins/logger";
+import db from "./plugins/db";
+import eventLog from "./plugins/event-log";
+import processStore from "./plugins/process-store";
+import camundaClient from "./plugins/camunda-client";
+import { registerCamundaSubscriptions } from "./camunda";
 
 /**
  * Build the Fastify application. This function registers all plugins
@@ -28,9 +31,18 @@ export async function build() {
   // Register the event log plugin. This decorates app.eventLog to write
   // structured entries for each completed or failed task.
   await app.register(eventLog);
+  // Register the process store plugin. This creates app.processStore for
+  // tracking active processes with in-memory Map and async DB persistence.
+  await app.register(processStore);
   // Register the Camunda client. This creates app.camundaClient used to
   // subscribe to external tasks.
   await app.register(camundaClient);
+
+  // Auto-load all routes from the routes directory
+  await app.register(autoload, {
+    dir: join(__dirname, "routes"),
+    options: { prefix: "/api/process" },
+  });
 
   // Register all topic subscriptions. These subscriptions will not be
   // activated until after the Camunda client has been registered.
