@@ -1,5 +1,3 @@
-import { request } from "undici";
-
 /**
  * Service for interacting with the Camunda REST API. This includes methods
  * for starting process instances and other process-related operations.
@@ -45,7 +43,7 @@ export async function startProcessInstance(
   };
 
   try {
-    const response = await request(url, {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -53,14 +51,14 @@ export async function startProcessInstance(
       body: JSON.stringify(body),
     });
 
-    if (response.statusCode !== 200) {
-      const errorText = await response.body.text();
+    if (!response.ok) {
+      const errorText = await response.text();
       throw new Error(
-        `Camunda API error: ${response.statusCode} - ${errorText}`
+        `Camunda API error: ${response.status} - ${errorText}`
       );
     }
 
-    const result = await response.body.json();
+    const result = await response.json();
     return result as StartProcessInstanceResponse;
   } catch (err) {
     if (err instanceof Error) {
