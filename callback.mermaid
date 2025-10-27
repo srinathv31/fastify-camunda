@@ -1,0 +1,28 @@
+sequenceDiagram
+    autonumber
+    actor C as External Consumer
+    participant A as Fastify API
+    participant M as In-Memory Map
+    participant DB as MSSQL (async)
+    participant W as Workflow Engine (Camunda/Mock)
+
+    C->>A: POST /api/process/start { correlationId, payload }
+    A->>M: Store correlationId (Promise pending)
+    A-->>DB: save(status="pending") (async)
+    A->>W: startProcess(correlationId)
+    Note over W: Workflow runs steps asynchronously
+
+    alt Process completes within timeout
+        W-->>A: POST /api/process/complete { correlationId, status, data }
+        A-->>DB: save(status="ok"|"error", data)
+        A->>M: Resolve Promise, delete key
+        A-->>C: 200 OK (final result)
+    else Timeout before completion
+        A-->>C: 202 Accepted { statusUrl }
+        Note over C,A: Client polls status or listens via SSE
+        W-->>A: POST /api/process/complete { correlationId, status, data }
+        A-->>DB: save(status="ok"|"error", data)
+        A->>M: Resolve Promise, delete key
+        C->>A: GET /api/process/status/:id
+        A-->>C: Return { status, data }
+    end
