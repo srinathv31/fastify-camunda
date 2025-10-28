@@ -11,10 +11,13 @@ export async function handleErrorService(
   input: InVars,
   ctx: { app: FastifyInstance }
 ): Promise<OutVars> {
-  const { correlationId, errorCode, errorMessage } = input;
+  const { correlationId, errorCode, errorMessage, errorType } = input;
+
+  // errorMessage comes from Camunda variables set by handleBpmnErrorWith
+  const errorToReport = errorMessage ?? "Process failed";
 
   ctx.app.log.info(
-    { correlationId, errorCode, errorMessage },
+    { correlationId, errorCode, errorType, errorMessage: errorToReport },
     "handling process error"
   );
 
@@ -28,7 +31,7 @@ export async function handleErrorService(
         body: JSON.stringify({
           correlationId,
           status: "error",
-          error: errorMessage ?? "Process failed",
+          error: errorToReport,
         }),
       }
     );

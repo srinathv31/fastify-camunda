@@ -29,6 +29,29 @@ export async function completeWith(
 }
 
 /**
+ * Handle a BPMN error with the provided variables. Similar to completeWith but
+ * for error scenarios. The variables are converted into a Variables instance
+ * and passed to Camunda along with the error code and message.
+ */
+export async function handleBpmnErrorWith(
+  taskService: TaskService,
+  task: Task,
+  errorCode: string,
+  errorMessage: string,
+  vars?: Record<string, unknown>
+): Promise<void> {
+  if (vars) {
+    const variables = new Variables();
+    for (const [k, v] of Object.entries(vars)) {
+      variables.set(k, v as any);
+    }
+    await taskService.handleBpmnError(task, errorCode, errorMessage, variables);
+  } else {
+    await taskService.handleBpmnError(task, errorCode, errorMessage);
+  }
+}
+
+/**
  * Map an error to a BPMN error definition. This function converts all errors
  * into BPMN errors that can be handled by error boundary events in the process.
  * All errors use EMPLOYEE_CARD_ERROR as the code to match the BPMN error boundary,

@@ -1,6 +1,11 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { readVars, completeWith, toBpmnError } from "./camunda";
+import {
+  readVars,
+  completeWith,
+  toBpmnError,
+  handleBpmnErrorWith,
+} from "./camunda";
 import type { CompiledStep } from "./define-process";
 
 /**
@@ -187,8 +192,12 @@ export function subscribeTopic<I, O>(
       // Convert all errors to BPMN errors for centralized error handling
       const bpmn = toBpmnError(err);
 
-      // Propagate BPMN error back to Camunda
-      await taskService.handleBpmnError(task, bpmn.code, bpmn.message);
+      // Propagate BPMN error back to Camunda with error variables
+      await handleBpmnErrorWith(taskService, task, bpmn.code, bpmn.message, {
+        errorCode: bpmn.code,
+        errorMessage: bpmn.message,
+        errorType: bpmn.details?.errorType ?? "UNKNOWN",
+      });
 
       await app.eventLog({
         ...baseLogRow,

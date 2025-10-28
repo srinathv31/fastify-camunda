@@ -9,6 +9,7 @@ export const InVars = z.object({
   correlationId: z.string(),
   errorCode: z.string().optional(),
   errorMessage: z.string().optional(),
+  errorType: z.string().optional(), // VALIDATION_ERROR, TECHNICAL_ERROR, etc.
 });
 
 export type InVars = z.infer<typeof InVars>;
