@@ -31,18 +31,27 @@ export async function completeWith(
 /**
  * Map an error to a BPMN error definition. This function converts all errors
  * into BPMN errors that can be handled by error boundary events in the process.
- * - BusinessRuleError: Uses custom error code
- * - Zod validation errors: VALIDATION_ERROR
- * - Generic errors: TECHNICAL_ERROR
+ * All errors use EMPLOYEE_CARD_ERROR as the code to match the BPMN error boundary,
+ * with specific error types preserved in the details object.
  */
 export function toBpmnError(err: unknown): {
   code: string;
   message: string;
   details?: Record<string, unknown>;
 } {
+  // Use single error code for all errors to match BPMN error boundary
+  const errorCode = "EMPLOYEE_CARD_ERROR";
+
   // Handle BusinessRuleError
   if (err instanceof BusinessRuleError) {
-    return { code: err.code, message: err.message, details: err.details };
+    return {
+      code: errorCode,
+      message: err.message,
+      details: {
+        errorType: err.code,
+        ...err.details,
+      },
+    };
   }
 
   // Handle Zod validation errors
@@ -54,13 +63,22 @@ export function toBpmnError(err: unknown): {
   ) {
     const zodErr = err as any;
     return {
-      code: "VALIDATION_ERROR",
+      code: errorCode,
       message: "Input validation failed",
-      details: { zodError: zodErr.errors || zodErr },
+      details: {
+        errorType: "VALIDATION_ERROR",
+        zodError: zodErr.errors || zodErr,
+      },
     };
   }
 
   // Handle generic errors
   const message = err instanceof Error ? err.message : String(err);
-  return { code: "TECHNICAL_ERROR", message, details: {} };
+  return {
+    code: errorCode,
+    message,
+    details: {
+      errorType: "TECHNICAL_ERROR",
+    },
+  };
 }
