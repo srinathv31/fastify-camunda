@@ -184,34 +184,18 @@ export function subscribeTopic<I, O>(
         execution_time: Date.now() - started,
       });
     } catch (err) {
+      // Convert all errors to BPMN errors for centralized error handling
       const bpmn = toBpmnError(err);
-      if (bpmn) {
-        // Propagate BPMN error back to Camunda
-        await taskService.handleBpmnError(task, bpmn.code, bpmn.message);
-        await app.eventLog({
-          ...baseLogRow,
-          business_action_request: JSON.stringify(vars),
-          business_action_response: JSON.stringify({ error: bpmn.message }),
-          result: stepConfig.error.result,
-          metadata: JSON.stringify(bpmn.details ?? {}),
-          execution_time: Date.now() - started,
-        });
-        return;
-      }
 
-      // Unexpected error: treat as technical failure
-      const message = err instanceof Error ? err.message : String(err);
-      await taskService.handleFailure(task, {
-        errorMessage: message,
-        retries: 0,
-        retryTimeout: 30_000,
-      });
+      // Propagate BPMN error back to Camunda
+      await taskService.handleBpmnError(task, bpmn.code, bpmn.message);
+
       await app.eventLog({
         ...baseLogRow,
         business_action_request: JSON.stringify(vars),
-        business_action_response: JSON.stringify({ error: message }),
-        result: "failure",
-        metadata: JSON.stringify({ error: message }),
+        business_action_response: JSON.stringify({ error: bpmn.message }),
+        result: stepConfig.error.result,
+        metadata: JSON.stringify(bpmn.details ?? {}),
         execution_time: Date.now() - started,
       });
     }

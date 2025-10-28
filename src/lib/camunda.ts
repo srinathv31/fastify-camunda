@@ -1,5 +1,5 @@
-import { Variables, TaskService, Task } from 'camunda-external-task-client-js';
-import { BusinessRuleError } from './errors';
+import { Variables, TaskService, Task } from "camunda-external-task-client-js";
+import { BusinessRuleError } from "./errors";
 
 /**
  * Convert the variables of a Camunda task into a plain JavaScript object. The
@@ -19,7 +19,7 @@ export function readVars(task: Task): Record<string, unknown> {
 export async function completeWith(
   taskService: TaskService,
   task: Task,
-  out: Record<string, unknown>,
+  out: Record<string, unknown>
 ): Promise<void> {
   const vars = new Variables();
   for (const [k, v] of Object.entries(out)) {
@@ -29,15 +29,38 @@ export async function completeWith(
 }
 
 /**
- * Map an error to a BPMN error definition if it is a BusinessRuleError. The
- * returned object contains an error code and message used by Camunda to
- * propagate BPMN errors. Non-business exceptions return null.
+ * Map an error to a BPMN error definition. This function converts all errors
+ * into BPMN errors that can be handled by error boundary events in the process.
+ * - BusinessRuleError: Uses custom error code
+ * - Zod validation errors: VALIDATION_ERROR
+ * - Generic errors: TECHNICAL_ERROR
  */
-export function toBpmnError(
-  err: unknown,
-): { code: string; message: string; details?: Record<string, unknown> } | null {
+export function toBpmnError(err: unknown): {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+} {
+  // Handle BusinessRuleError
   if (err instanceof BusinessRuleError) {
     return { code: err.code, message: err.message, details: err.details };
   }
-  return null;
+
+  // Handle Zod validation errors
+  if (
+    err &&
+    typeof err === "object" &&
+    "name" in err &&
+    err.name === "ZodError"
+  ) {
+    const zodErr = err as any;
+    return {
+      code: "VALIDATION_ERROR",
+      message: "Input validation failed",
+      details: { zodError: zodErr.errors || zodErr },
+    };
+  }
+
+  // Handle generic errors
+  const message = err instanceof Error ? err.message : String(err);
+  return { code: "TECHNICAL_ERROR", message, details: {} };
 }

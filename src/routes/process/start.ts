@@ -56,28 +56,35 @@ const startRoute: FastifyPluginAsync = async (app) => {
 
       try {
         // Convert variables to Camunda format, including execution context
-        const camundaVars: Record<string, { value: any; type: string }> = {
+        const camundaVars: Record<
+          string,
+          { value: any; type: string; serializationDataFormat?: string }
+        > = {
           correlationId: { value: correlationId, type: "String" },
           batch_id: { value: batch_id, type: "String" },
           traceability_id: { value: traceability_id, type: "String" },
           application_id: { value: application_id, type: "String" },
-          identifiers: { value: identifiers, type: "Json" },
+          identifiers: {
+            value: JSON.stringify(identifiers),
+            type: "Json",
+            serializationDataFormat: "application/json",
+          },
         };
 
-        if (variables) {
-          for (const [key, value] of Object.entries(variables)) {
-            // Infer Camunda type from JS type
-            let type = "String";
-            if (typeof value === "number") {
-              type = Number.isInteger(value) ? "Integer" : "Double";
-            } else if (typeof value === "boolean") {
-              type = "Boolean";
-            } else if (typeof value === "object") {
-              type = "Json";
-            }
-            camundaVars[key] = { value, type };
-          }
-        }
+        // if (variables) {
+        //   for (const [key, value] of Object.entries(variables)) {
+        //     // Infer Camunda type from JS type
+        //     let type = "String";
+        //     if (typeof value === "number") {
+        //       type = Number.isInteger(value) ? "Integer" : "Double";
+        //     } else if (typeof value === "boolean") {
+        //       type = "Boolean";
+        //     } else if (typeof value === "object") {
+        //       type = "Json";
+        //     }
+        //     camundaVars[key] = { value, type };
+        //   }
+        // }
 
         // Start the process in Camunda
         const processInstance = await startProcessInstance(

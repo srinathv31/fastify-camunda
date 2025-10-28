@@ -3,6 +3,7 @@ import { registerValidateUserInformation } from "./processes/onboard-user/topics
 import { registerRunBackgroundCheck } from "./processes/onboard-user/topics/run-background-check/handler";
 import { registerCallOnboardingApi } from "./processes/onboard-user/topics/call-onboarding-api/handler";
 import { registerPrepareResponse } from "./processes/onboard-user/topics/prepare-response/handler";
+import { registerHandleError } from "./processes/onboard-user/topics/handle-error/handler";
 
 /**
  * Register all Camunda topic subscriptions. Each call wires up a
@@ -16,4 +17,5 @@ export async function registerCamundaSubscriptions(
   registerRunBackgroundCheck(app);
   registerCallOnboardingApi(app);
   registerPrepareResponse(app);
+  registerHandleError(app);
 }
