@@ -1,0 +1,69 @@
+sequenceDiagram
+    autonumber
+    actor Client as External Client
+    participant API as Fastify API
+    participant PS as Process Store
+    participant WR as Waitroom
+    participant DB as Database
+    participant CR as Camunda REST
+    participant CE as Camunda Engine
+    participant W as Worker
+
+    Note over Client,W: Phase 1: Initiation
+    Client->>API: POST /api/process/start
+    API->>PS: save(correlationId, status="pending")
+    PS->>PS: Update in-memory Map
+    PS-->>DB: Async write to DB
+    API->>WR: createWait(correlationId, 25s)
+    WR->>WR: Store promise with timeout
+
+    Note over Client,W: Phase 2: Start Process
+    API->>CR: POST /process-definition/key/{key}/start
+    CR->>CE: Create process instance
+    CE-->>CR: Return process instance ID
+    CR-->>API: Process instance created
+
+    Note over Client,W: Phase 3: Execute Tasks
+    loop For each service task
+        CE->>CE: Create external task
+        W->>CR: POST /external-task/fetchAndLock
+        CR-->>W: Return locked tasks
+        W->>W: Extract variables
+        W->>W: Validate with Zod schema
+        W->>W: Execute service (business logic)
+        alt Success
+            W->>CR: POST /external-task/{id}/complete
+            W-->>DB: Log event (status=ok)
+        else Error
+            W->>CR: POST /external-task/{id}/bpmnError
+            W-->>DB: Log event (status=error)
+        end
+        CR->>CE: Update process variables
+        CE->>CE: Proceed to next task
+    end
+
+    Note over Client,W: Phase 4: Complete Process
+    W->>API: POST /api/process/complete
+    API->>PS: save(correlationId, status="ok", data)
+    PS->>PS: Update in-memory Map
+    PS-->>DB: Async write to DB
+    API->>WR: completeWait(correlationId, result)
+    WR->>WR: Resolve promise
+    
+    alt Process completed within 25s timeout
+        WR-->>API: Promise resolved
+        API-->>Client: 200 OK (result)
+    else Process exceeded timeout
+        Note over WR,API: Wait timeout expired earlier
+        API-->>Client: 202 Accepted (statusUrl)
+        Client->>API: GET /api/process/status/:correlationId
+        API->>PS: get(correlationId)
+        PS-->>API: Return process state
+        API-->>Client: 200 OK (result)
+    end
+
+    Note over Client,W: Phase 5: Cleanup
+    Note over PS: After 5 seconds
+    PS->>PS: Remove from in-memory Map
+    Note over DB: Data persists in database
+
