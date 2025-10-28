@@ -47,8 +47,23 @@ export default fp<PluginOpts>(
     const pool = new ConnectionPool(config);
 
     fastify.log.info("Connecting MSSQL pool…");
-    await pool.connect();
-    fastify.log.info("MSSQL connected.");
+    try {
+      await pool.connect();
+      fastify.log.info("MSSQL connected.");
+    } catch (err) {
+      fastify.log.error(
+        {
+          err,
+          config: {
+            server: config.server,
+            database: config.database,
+            user: config.user,
+          },
+        },
+        "Failed to connect to MSSQL"
+      );
+      throw err;
+    }
 
     // close cleanly on shutdown
     fastify.addHook("onClose", async () => {
