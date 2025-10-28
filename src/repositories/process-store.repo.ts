@@ -6,7 +6,7 @@ import { ProcessData } from "../lib/process-store";
  */
 
 export interface Db {
-  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>;
+  query: (sql: string, params?: unknown[]) => Promise<any[]>;
 }
 
 /**
@@ -62,11 +62,11 @@ export async function findProcessStore(
     [correlationId]
   );
 
-  if (result.rows.length === 0) {
+  if (result.length === 0) {
     return null;
   }
 
-  const row = result.rows[0];
+  const row = result[0];
   return {
     status: row.status,
     data: row.data ? JSON.parse(row.data) : undefined,
@@ -87,7 +87,7 @@ export async function findAllProcessStore(db: Db): Promise<ProcessData[]> {
     "/* SELECT correlation_id, status, data, error, started_at, updated_at FROM process_store ORDER BY updated_at DESC */"
   );
 
-  return result.rows.map((row) => ({
+  return result.map((row) => ({
     status: row.status,
     data: row.data ? JSON.parse(row.data) : undefined,
     error: row.error,
