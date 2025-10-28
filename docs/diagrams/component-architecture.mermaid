@@ -1,0 +1,130 @@
+graph TB
+    subgraph "External Layer"
+        Client[External Clients]
+    end
+
+    subgraph "Fastify Application"
+        subgraph "API Layer"
+            StartRoute[/api/process/start]
+            StatusRoute[/api/process/status/:id]
+            AllRoute[/api/process/status/all]
+            CompleteRoute[/api/process/complete]
+        end
+
+        subgraph "Core Services"
+            Waitroom[Waitroom<br/>In-memory Map<br/>Pending Promises]
+            ProcessStore[Process Store<br/>In-memory Map<br/>+ Async DB]
+        end
+
+        subgraph "Plugins"
+            EnvPlugin[env<br/>Config Validation]
+            LoggerPlugin[logger<br/>Pino Logging]
+            DbPlugin[db<br/>Connection Pool]
+            EventLogPlugin[eventLog<br/>Audit Logging]
+            ProcessStorePlugin[processStore<br/>State Management]
+            CamundaPlugin[camundaClient<br/>External Task Client]
+        end
+
+        subgraph "Camunda Workers"
+            Worker1[Topic Handler 1<br/>validate-user-information]
+            Worker2[Topic Handler 2<br/>run-background-check]
+            Worker3[Topic Handler 3<br/>call-onboarding-api]
+            Worker4[Topic Handler 4<br/>prepare-response]
+        end
+
+        subgraph "Business Logic"
+            Service1[Service: Validate User]
+            Service2[Service: Background Check]
+            Service3[Service: Onboarding API]
+            Service4[Service: Prepare Response]
+        end
+
+        subgraph "Data Access"
+            ProcessRepo[Process Store Repo]
+            EventLogRepo[Event Log Repo]
+            UserRepo[User Repo]
+        end
+
+        subgraph "Utilities"
+            SubscribeTopic[subscribeTopic<br/>Generic Handler Wrapper]
+            Errors[BusinessRuleError<br/>Custom Errors]
+            HttpService[HTTP Service<br/>External API Client]
+            CamundaHelpers[Camunda Helpers<br/>readVars, completeWith]
+        end
+    end
+
+    subgraph "External Systems"
+        CamundaEngine[Camunda Engine<br/>BPMN Orchestration]
+        Database[(MSSQL Database<br/>process_store<br/>event_log)]
+        ExternalAPI[External APIs<br/>Third-party Services]
+    end
+
+    %% Client interactions
+    Client -->|HTTP| StartRoute
+    Client -->|HTTP| StatusRoute
+    Client -->|HTTP| AllRoute
+
+    %% Route dependencies
+    StartRoute --> Waitroom
+    StartRoute --> ProcessStore
+    StartRoute --> CamundaEngine
+    StatusRoute --> ProcessStore
+    AllRoute --> ProcessStore
+    CompleteRoute --> ProcessStore
+    CompleteRoute --> Waitroom
+
+    %% Worker flow
+    CamundaPlugin --> Worker1
+    CamundaPlugin --> Worker2
+    CamundaPlugin --> Worker3
+    CamundaPlugin --> Worker4
+
+    Worker1 --> SubscribeTopic
+    Worker2 --> SubscribeTopic
+    Worker3 --> SubscribeTopic
+    Worker4 --> SubscribeTopic
+
+    SubscribeTopic --> Service1
+    SubscribeTopic --> Service2
+    SubscribeTopic --> Service3
+    SubscribeTopic --> Service4
+
+    Service1 --> UserRepo
+    Service2 --> HttpService
+    Service3 --> HttpService
+    Service4 --> CompleteRoute
+
+    %% Data access
+    ProcessStore --> ProcessRepo
+    ProcessStorePlugin --> ProcessRepo
+    EventLogPlugin --> EventLogRepo
+    ProcessRepo --> Database
+    EventLogRepo --> Database
+    UserRepo --> Database
+
+    %% External systems
+    CamundaPlugin -.Polls.-> CamundaEngine
+    StartRoute -.Calls.-> CamundaEngine
+    HttpService --> ExternalAPI
+
+    %% Plugin dependencies
+    StartRoute --> ProcessStorePlugin
+    StatusRoute --> ProcessStorePlugin
+    CompleteRoute --> ProcessStorePlugin
+
+    classDef apiNode fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff
+    classDef coreNode fill:#2196F3,stroke:#333,stroke-width:2px,color:#fff
+    classDef pluginNode fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff
+    classDef workerNode fill:#9C27B0,stroke:#333,stroke-width:2px,color:#fff
+    classDef serviceNode fill:#E91E63,stroke:#333,stroke-width:2px,color:#fff
+    classDef dataNode fill:#00BCD4,stroke:#333,stroke-width:2px,color:#fff
+    classDef externalNode fill:#607D8B,stroke:#333,stroke-width:2px,color:#fff
+
+    class StartRoute,StatusRoute,AllRoute,CompleteRoute apiNode
+    class Waitroom,ProcessStore coreNode
+    class EnvPlugin,LoggerPlugin,DbPlugin,EventLogPlugin,ProcessStorePlugin,CamundaPlugin pluginNode
+    class Worker1,Worker2,Worker3,Worker4 workerNode
+    class Service1,Service2,Service3,Service4 serviceNode
+    class ProcessRepo,EventLogRepo,UserRepo,SubscribeTopic,Errors,HttpService,CamundaHelpers dataNode
+    class CamundaEngine,Database,ExternalAPI externalNode
+
