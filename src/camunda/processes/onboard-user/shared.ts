@@ -20,6 +20,7 @@ export const ONBOARD_USER_PROCESS = defineProcess([
   "run-background-check",
   "call-onboarding-api",
   "prepare-response",
+  "handle-error",
 ] as const)({
   "validate-user-information": {
     http_method: null,
@@ -44,6 +45,12 @@ export const ONBOARD_USER_PROCESS = defineProcess([
     endpoint: null,
     success: { result: "Response prepared" },
     error: { result: "Response preparation failed" },
+  },
+  "handle-error": {
+    http_method: null,
+    endpoint: null,
+    success: { result: "Error handled and client notified" },
+    error: { result: "Error handler failed" },
   },
 });
 

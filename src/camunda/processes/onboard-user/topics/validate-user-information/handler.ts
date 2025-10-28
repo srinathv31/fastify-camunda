@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { subscribeTopic } from "../../../../../lib/subscribeTopic";
+import { subscribeTopic } from "../../../../../lib/subscribe-topic";
 import { InVars, OutVars } from "./schema";
 import { validateUserInformationService } from "./service";
 import { ONBOARD_USER_STEPS, PROCESS_DEFAULTS } from "../../shared";
