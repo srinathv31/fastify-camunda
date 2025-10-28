@@ -1,7 +1,8 @@
-import { InVars, OutVars } from './schema';
-import { FastifyInstance } from 'fastify';
-import { BusinessRuleError } from '../../../../../lib/errors';
-import { http } from '../../../../../services/http.service';
+import { InVars, OutVars } from "./schema";
+import { FastifyInstance } from "fastify";
+import { BusinessRuleError } from "../../../../../lib/errors";
+import { http } from "../../../../../services/http.service";
+import { ServiceOutput } from "../../../../../lib/subscribe-topic";
 
 /**
  * Service implementation for the run-background-check task. This function
@@ -13,28 +14,42 @@ import { http } from '../../../../../services/http.service';
  */
 export async function runBackgroundCheckService(
   input: InVars,
-  ctx: { app: FastifyInstance },
-): Promise<OutVars> {
+  ctx: { app: FastifyInstance }
+): Promise<ServiceOutput<OutVars>> {
   const { userId, validated } = input;
   // If the user has not been validated, stop the process with a BPMN error.
   if (!validated) {
-    throw new BusinessRuleError('VALIDATION_REQUIRED', 'User must be validated before running background check');
+    throw new BusinessRuleError(
+      "VALIDATION_REQUIRED",
+      "User must be validated before running background check"
+    );
   }
   try {
     // Simulate an HTTP call. Replace this with a real request to your
     // background check service. The `http` helper returns an object with
     // a `body` property containing the parsed JSON response.
-    const res = await http.get('/background-check', { searchParams: { userId } });
+    const res = await http.get("/background-check", {
+      searchParams: { userId },
+    });
     const body = res?.body ?? {};
-    const passed = typeof body.passed === 'boolean' ? body.passed : Math.random() > 0.2;
-    const riskScore = typeof body.score === 'number' ? body.score : Math.floor(Math.random() * 101);
+    const passed =
+      typeof body.passed === "boolean" ? body.passed : Math.random() > 0.2;
+    const riskScore =
+      typeof body.score === "number"
+        ? body.score
+        : Math.floor(Math.random() * 101);
+
+    // Return with HTTP status code override to capture actual API response
     return {
-      backgroundCheckPassed: passed,
-      riskScore,
+      data: {
+        backgroundCheckPassed: passed,
+        riskScore,
+      },
+      http_status_code: res?.statusCode ?? 200,
     };
   } catch (err) {
     // Propagate technical failures. Camunda will handle retries based on
     // retry configuration if any. In this stub we simply throw an Error.
-    throw new Error('Failed to execute background check');
+    throw new Error("Failed to execute background check");
   }
 }

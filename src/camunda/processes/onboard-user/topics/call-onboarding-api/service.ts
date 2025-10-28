@@ -2,6 +2,7 @@ import { InVars, OutVars } from "./schema";
 import { FastifyInstance } from "fastify";
 import { BusinessRuleError } from "../../../../../lib/errors";
 import { http } from "../../../../../services/http.service";
+import { ServiceOutput } from "../../../../../lib/subscribe-topic";
 
 /**
  * Service implementation for the call-onboarding-api task. This step
@@ -12,7 +13,7 @@ import { http } from "../../../../../services/http.service";
 export async function callOnboardingApiService(
   input: InVars,
   ctx: { app: FastifyInstance }
-): Promise<OutVars | { data: OutVars; http_status_code: number }> {
+): Promise<ServiceOutput<OutVars>> {
   const { userId, validated, backgroundCheckPassed, riskScore } = input;
   // Both previous conditions must be satisfied to proceed.
   if (!validated) {
@@ -29,7 +30,7 @@ export async function callOnboardingApiService(
     // Simulate an API call. Replace with real HTTP request to your
     // onboarding service. It may return additional context such as
     // account IDs or tokens.
-    const res = await http.post("/onboarding", { json: { userId, riskScore } });
+    const res = await http.post("/onboarding", { body: { userId, riskScore } });
     const body = res?.body ?? {};
     // Use the mock response if available; otherwise derive onboarding
     // success based on the risk score threshold. Lower scores are more
