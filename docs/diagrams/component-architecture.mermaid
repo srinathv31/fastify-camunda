@@ -5,10 +5,10 @@ graph TB
 
     subgraph "Fastify Application"
         subgraph "API Layer"
-            StartRoute[/api/process/start]
-            StatusRoute[/api/process/status/:id]
-            AllRoute[/api/process/status/all]
-            CompleteRoute[/api/process/complete]
+            StartRoute["/api/process/start"]
+            StatusRoute["/api/process/status/:id"]
+            AllRoute["/api/process/status/all"]
+            CompleteRoute["/api/process/complete"]
         end
 
         subgraph "Core Services"
