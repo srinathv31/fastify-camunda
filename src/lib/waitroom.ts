@@ -67,6 +67,25 @@ export function failWait(correlationId: string, err: any): boolean {
 }
 
 /**
+ * Check if a wait is currently pending for a correlation ID.
+ *
+ * @param correlationId The process identifier
+ * @returns true if a pending wait exists, false otherwise
+ */
+export function hasPendingWait(correlationId: string): boolean {
+  return pending.has(correlationId);
+}
+
+/**
+ * Get the count of all pending waits. Useful for debugging.
+ *
+ * @returns The number of currently pending waits
+ */
+export function getPendingCount(): number {
+  return pending.size;
+}
+
+/**
  * Clear all pending waits. Called on server shutdown.
  *
  * @param reason Optional reason for the abort
