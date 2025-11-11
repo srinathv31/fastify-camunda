@@ -38,8 +38,8 @@ export async function prepareResponseService(
       onboarded,
       riskScore,
       reason,
-      pendingWaitsCount: getPendingCount(),
-      hasPendingWait: hasPendingWait(correlationId),
+      pendingWaitsCount: await getPendingCount(ctx.app.db),
+      hasPendingWait: await hasPendingWait(ctx.app.db, correlationId),
     },
     "prepareResponseService: started"
   );
@@ -84,13 +84,14 @@ export async function prepareResponseService(
     );
 
     // Check if there's a pending wait before attempting to wake
-    const hadPendingWait = hasPendingWait(correlationId);
+    const hadPendingWait = await hasPendingWait(ctx.app.db, correlationId);
 
     // Wake any waiting clients
     const woke =
       status === "ok"
-        ? completeWait(correlationId, responseData ?? null)
-        : failWait(
+        ? await completeWait(ctx.app.db, correlationId, responseData ?? null)
+        : await failWait(
+            ctx.app.db,
             correlationId,
             new Error(reason ?? "Onboarding process failed")
           );
@@ -113,7 +114,7 @@ export async function prepareResponseService(
         totalDuration,
         SYNC_TIMEOUT_MS,
         approachingTimeout,
-        pendingWaitsCount: getPendingCount(),
+        pendingWaitsCount: await getPendingCount(ctx.app.db),
       },
       "prepareResponseService: process completion handled"
     );

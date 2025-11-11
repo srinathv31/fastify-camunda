@@ -102,7 +102,7 @@ const startRoute: FastifyPluginAsync = async (app) => {
         );
 
         // Wait for completion with timeout
-        const result = await createWait(correlationId, SYNC_TIMEOUT_MS);
+        const result = await createWait(app.db, correlationId, SYNC_TIMEOUT_MS);
 
         // Process completed within timeout
         return reply.code(200).send({
