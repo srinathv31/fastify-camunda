@@ -1,6 +1,11 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { readVars, completeWith, toBpmnError } from "./camunda";
+import {
+  readVars,
+  completeWith,
+  toBpmnError,
+  handleBpmnErrorWith,
+} from "./camunda";
 import type { CompiledStep } from "./define-process";
 
 /**
@@ -17,7 +22,7 @@ import type { CompiledStep } from "./define-process";
  * - Uses the HTTP status override in event logs if provided
  * - Propagates common identifier fields (customerId, userId, etc.) to next steps
  */
-type ServiceOutput<O> = O | { data: O; http_status_code: number };
+export type ServiceOutput<O> = O | { data: O; http_status_code?: number };
 
 /**
  * Extract the actual data from a service output, handling both patterns.
@@ -39,7 +44,7 @@ function extractHttpStatus<O>(output: ServiceOutput<O>): number | null {
     "data" in output &&
     "http_status_code" in output
   ) {
-    return output.http_status_code;
+    return output.http_status_code ?? null;
   }
   return null;
 }
@@ -177,41 +182,42 @@ export function subscribeTopic<I, O>(
         business_action_response: JSON.stringify(out),
         identifiers: JSON.stringify(updatedIdentifiers),
         result: stepConfig.success.result,
-        http_status_code: httpStatusOverride,
+        http_status_code: httpStatusOverride ?? 200,
         metadata: resultMessage
           ? JSON.stringify({ message: resultMessage(out) })
           : null,
         execution_time: Date.now() - started,
       });
     } catch (err) {
+      // Convert all errors to BPMN errors for centralized error handling
       const bpmn = toBpmnError(err);
-      if (bpmn) {
-        // Propagate BPMN error back to Camunda
-        await taskService.handleBpmnError(task, bpmn.code, bpmn.message);
-        await app.eventLog({
-          ...baseLogRow,
-          business_action_request: JSON.stringify(vars),
-          business_action_response: JSON.stringify({ error: bpmn.message }),
-          result: stepConfig.error.result,
-          metadata: JSON.stringify(bpmn.details ?? {}),
-          execution_time: Date.now() - started,
-        });
-        return;
+
+      // Propagate BPMN error back to Camunda with error variables
+      await handleBpmnErrorWith(taskService, task, bpmn.code, bpmn.message, {
+        errorCode: bpmn.code,
+        errorMessage: bpmn.message,
+        errorType: bpmn.details?.errorType ?? "UNKNOWN",
+      });
+
+      // Map error types to HTTP status codes
+      const errorType = bpmn.details?.errorType ?? "UNKNOWN";
+      let errorStatusCode: number;
+      if (errorType === "VALIDATION_ERROR") {
+        errorStatusCode = 422; // Unprocessable Entity
+      } else if (errorType === "TECHNICAL_ERROR") {
+        errorStatusCode = 500; // Internal Server Error
+      } else {
+        // Business rule errors and other types
+        errorStatusCode = 400; // Bad Request
       }
 
-      // Unexpected error: treat as technical failure
-      const message = err instanceof Error ? err.message : String(err);
-      await taskService.handleFailure(task, {
-        errorMessage: message,
-        retries: 0,
-        retryTimeout: 30_000,
-      });
       await app.eventLog({
         ...baseLogRow,
         business_action_request: JSON.stringify(vars),
-        business_action_response: JSON.stringify({ error: message }),
-        result: "failure",
-        metadata: JSON.stringify({ error: message }),
+        business_action_response: JSON.stringify({ error: bpmn.message }),
+        result: stepConfig.error.result,
+        http_status_code: errorStatusCode,
+        metadata: JSON.stringify(bpmn.details ?? {}),
         execution_time: Date.now() - started,
       });
     }
