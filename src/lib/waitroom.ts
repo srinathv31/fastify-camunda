@@ -1,80 +1,181 @@
 /**
  * Waitroom manages pending process requests that are waiting for completion.
- * Each wait is tracked by a correlation ID and includes a promise that can be
- * resolved (on success) or rejected (on error or timeout). This enables the
- * sync/async callback pattern where clients wait up to a timeout period for
- * process completion before falling back to polling.
+ * Instead of using an in-memory Map, this implementation polls the database
+ * with exponential backoff to check for process completion. This enables the
+ * sync/async callback pattern across multiple server instances and survives
+ * server restarts.
  */
 
-type Pending = {
-  resolve: (v: any) => void;
-  reject: (e: any) => void;
-  timeout: NodeJS.Timeout;
-};
-
-const pending = new Map<string, Pending>();
+import {
+  pollProcessStore,
+  completeProcessStore,
+  failProcessStore,
+} from "../repositories/process-store.repo";
+import { Db } from "../repositories/process-store.repo";
 
 /**
  * Create a wait for a process identified by correlationId. Returns a promise
- * that resolves when completeWait is called or rejects on timeout.
+ * that resolves when the process completes or rejects on timeout.
+ * Uses scoped polling with exponential backoff (50ms → 100ms → 250ms → 500ms → 1000ms cap).
  *
+ * @param db Database connection
  * @param correlationId Unique identifier for the process
- * @param ms Timeout in milliseconds
+ * @param timeoutMs Timeout in milliseconds
  * @returns Promise that resolves with the process result or rejects on timeout/error
  */
-export function createWait(correlationId: string, ms: number): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      pending.delete(correlationId);
-      const err = new Error("Process timeout") as any;
-      err.code = "TIMEOUT";
-      reject(err);
-    }, ms);
-    pending.set(correlationId, { resolve, reject, timeout });
-  });
+export async function createWait(
+  db: Db,
+  correlationId: string,
+  timeoutMs: number
+): Promise<any> {
+  const start = Date.now();
+  let delay = 50; // Start with 50ms, will grow: 50 → 100 → 250 → 500 → 1000ms (cap)
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const processData = await pollProcessStore(db, correlationId);
+
+      if (processData) {
+        // Map DONE/ERROR back to ok/error for compatibility
+        const normalizedStatus =
+          processData.status === "pending"
+            ? "pending"
+            : processData.status.toLowerCase() === "done"
+            ? "ok"
+            : "error";
+
+        if (normalizedStatus === "ok") {
+          return processData.data ?? null;
+        }
+
+        if (normalizedStatus === "error") {
+          const err = new Error(
+            processData.error ?? "Onboarding process failed"
+          );
+          throw err;
+        }
+
+        // Still pending, continue polling
+      }
+    } catch (lockTimeoutError) {
+      // If we hit a lock timeout (rare), just continue to next poll
+      // The lock timeout is set to 200ms in the repository
+    }
+
+    // Wait before next poll with exponential backoff
+    await new Promise((res) => setTimeout(res, delay));
+    delay = Math.min(delay * 2, 1000); // Cap at 1000ms
+  }
+
+  // Timed out waiting
+  const err = new Error("Process timeout") as any;
+  err.code = "TIMEOUT";
+  throw err;
 }
 
 /**
  * Complete a pending wait with a successful result.
+ * Updates the database row to DONE status.
  *
+ * @param db Database connection
  * @param correlationId The process identifier
  * @param payload The result data to return to the waiting client
- * @returns true if a pending wait was found and completed, false otherwise
+ * @returns true if update was successful, false otherwise
  */
-export function completeWait(correlationId: string, payload: any): boolean {
-  const p = pending.get(correlationId);
-  if (!p) return false;
-  clearTimeout(p.timeout);
-  pending.delete(correlationId);
-  p.resolve(payload);
-  return true;
+export async function completeWait(
+  db: Db,
+  correlationId: string,
+  payload: any
+): Promise<boolean> {
+  try {
+    await completeProcessStore(db, correlationId, payload);
+    return true;
+  } catch (err) {
+    // Log error but return false to indicate failure
+    console.error("Failed to complete wait:", err);
+    return false;
+  }
 }
 
 /**
  * Fail a pending wait with an error.
+ * Updates the database row to ERROR status.
  *
+ * @param db Database connection
  * @param correlationId The process identifier
  * @param err The error to reject with
- * @returns true if a pending wait was found and failed, false otherwise
+ * @returns true if update was successful, false otherwise
  */
-export function failWait(correlationId: string, err: any): boolean {
-  const p = pending.get(correlationId);
-  if (!p) return false;
-  clearTimeout(p.timeout);
-  pending.delete(correlationId);
-  p.reject(err);
-  return true;
+export async function failWait(
+  db: Db,
+  correlationId: string,
+  err: any
+): Promise<boolean> {
+  try {
+    await failProcessStore(db, correlationId, err);
+    return true;
+  } catch (error) {
+    // Log error but return false to indicate failure
+    console.error("Failed to fail wait:", error);
+    return false;
+  }
+}
+
+/**
+ * Check if a wait is currently pending for a correlation ID.
+ * Queries the database to check if status is PENDING.
+ *
+ * @param db Database connection
+ * @param correlationId The process identifier
+ * @returns true if a pending wait exists, false otherwise
+ */
+export async function hasPendingWait(
+  db: Db,
+  correlationId: string
+): Promise<boolean> {
+  try {
+    const processData = await pollProcessStore(db, correlationId);
+    return processData?.status === "pending";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the count of all pending waits. Useful for debugging.
+ *
+ * @param db Database connection
+ * @returns The number of currently pending waits
+ */
+export async function getPendingCount(db: Db): Promise<number> {
+  try {
+    const result = await db.query(
+      "SELECT COUNT(*) as count FROM dbo.process_store WHERE status = 'PENDING';"
+    );
+    return result[0]?.count ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 /**
  * Clear all pending waits. Called on server shutdown.
+ * Updates all PENDING rows to ERROR status.
  *
+ * @param db Database connection
  * @param reason Optional reason for the abort
  */
-export function clearAll(reason = "shutdown"): void {
-  for (const [_correlationId, p] of pending) {
-    clearTimeout(p.timeout);
-    p.reject(new Error(`Aborted: ${reason}`));
+export async function clearAll(db: Db, reason = "shutdown"): Promise<void> {
+  try {
+    await db.query(
+      `UPDATE dbo.process_store 
+       SET status = 'ERROR', 
+           error_json = @p1, 
+           updated_at = SYSUTCDATETIME()
+       WHERE status = 'PENDING';`,
+      [JSON.stringify({ message: `Aborted: ${reason}` })]
+    );
+  } catch (err) {
+    console.error("Failed to clear all waits:", err);
   }
-  pending.clear();
 }

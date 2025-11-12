@@ -45,8 +45,9 @@ const completeRoute: FastifyPluginAsync = async (app) => {
       // Wake any waiting clients
       const woke =
         status === "ok"
-          ? completeWait(correlationId, data ?? null)
-          : failWait(
+          ? await completeWait(app.db, correlationId, data ?? null)
+          : await failWait(
+              app.db,
               correlationId,
               new Error(error ?? "Unknown process error")
             );

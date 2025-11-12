@@ -29,13 +29,13 @@ export async function build() {
   // Register the database plugin. This creates app.db with a query() method.
   await app.register(db, {
     config: {
-      user: process.env.DB_USER!,
-      password: process.env.DB_PASS!,
-      server: process.env.DB_HOST!,
-      database: process.env.DB_NAME!,
+      user: app.config.DB_USER!,
+      password: app.config.DB_PASSWORD!,
+      server: app.config.DB_HOST!,
+      database: app.config.DB_NAME!,
       options: {
         encrypt: false,
-        trustServerCertificate: false,
+        trustServerCertificate: true,
       },
       pool: { max: 10, min: 0, idleTimeoutMillis: 30000 },
     },
@@ -48,7 +48,7 @@ export async function build() {
   await app.register(processStore);
   // Register the Camunda client. This creates app.camundaClient used to
   // subscribe to external tasks.
-  await app.register(camundaClient);
+  // await app.register(camundaClient);
 
   // Auto-load all routes from the routes directory
   await app.register(autoload, {
@@ -58,7 +58,7 @@ export async function build() {
 
   // Register all topic subscriptions. These subscriptions will not be
   // activated until after the Camunda client has been registered.
-  await registerCamundaSubscriptions(app);
+  // await registerCamundaSubscriptions(app);
 
   return app;
 }

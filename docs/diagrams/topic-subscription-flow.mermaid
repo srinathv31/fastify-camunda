@@ -1,0 +1,53 @@
+flowchart TD
+    Start([Worker Starts]) --> Subscribe[Subscribe to Topic via subscribeTopic]
+    
+    Subscribe --> Poll[Poll Camunda for Tasks]
+    Poll --> CheckTasks{Tasks<br/>Available?}
+    
+    CheckTasks -->|No| Wait[Wait asyncResponseTimeout]
+    Wait --> Poll
+    
+    CheckTasks -->|Yes| Fetch[Fetch and Lock Task]
+    Fetch --> Extract[Extract Variables from Task]
+    
+    Extract --> SystemVars[Extract System Variables:<br/>batch_id, traceability_id,<br/>application_id, identifiers]
+    
+    SystemVars --> Validate{Zod Schema<br/>Validation}
+    
+    Validate -->|Invalid| ValidationError[ZodError Thrown]
+    ValidationError --> ConvertError[Convert to BPMN Error<br/>errorType: VALIDATION_ERROR]
+    
+    Validate -->|Valid| CallService[Call Service Function<br/>with Validated Input]
+    
+    CallService --> ServiceExec{Service<br/>Execution}
+    
+    ServiceExec -->|Success| ExtractOutput[Extract Output Data]
+    ExtractOutput --> UpdateIds[Update Identifiers<br/>Propagate: userId, customerId, etc.]
+    UpdateIds --> CleanOutput[Remove undefined values]
+    CleanOutput --> CompleteTask[Complete Task with Output Variables]
+    CompleteTask --> LogSuccess[Log Event to Database<br/>status=ok, execution_time, etc.]
+    LogSuccess --> Poll
+    
+    ServiceExec -->|BusinessRuleError| BRError[BusinessRuleError Caught]
+    BRError --> ConvertBR[Convert to BPMN Error<br/>errorType: from error.code]
+    
+    ServiceExec -->|Technical Error| TechError[Other Error Caught]
+    TechError --> ConvertTech[Convert to BPMN Error<br/>errorType: TECHNICAL_ERROR]
+    
+    ConvertError --> MapStatus[Map Error to HTTP Status:<br/>Validation: 422<br/>Business: 400<br/>Technical: 500]
+    ConvertBR --> MapStatus
+    ConvertTech --> MapStatus
+    
+    MapStatus --> BpmnError[Send BPMN Error to Camunda<br/>with error variables]
+    BpmnError --> LogError[Log Event to Database<br/>status=error, error details]
+    LogError --> Poll
+
+    style Start fill:#4CAF50,stroke:#333,stroke-width:3px
+    style Subscribe fill:#2196F3,stroke:#333,stroke-width:2px
+    style Validate fill:#FF9800,stroke:#333,stroke-width:2px
+    style ServiceExec fill:#FF9800,stroke:#333,stroke-width:2px
+    style CompleteTask fill:#4CAF50,stroke:#333,stroke-width:2px
+    style BpmnError fill:#f44336,stroke:#333,stroke-width:2px
+    style LogSuccess fill:#8BC34A,stroke:#333,stroke-width:2px
+    style LogError fill:#f44336,stroke:#333,stroke-width:2px
+

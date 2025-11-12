@@ -1,80 +1,76 @@
 /**
- * Process store provides an in-memory Map for tracking active processes.
- * This is the primary data structure for fast access to process status.
- * The database acts as an async persistence layer for durability.
+ * Process store provides database-backed persistence for tracking active processes.
+ * This replaces the in-memory Map approach with MSSQL queries for multi-instance
+ * support and durability across restarts.
  */
+
+import {
+  upsertProcessStore,
+  findProcessStore,
+  findAllProcessStore,
+  deleteProcessStore,
+} from "../repositories/process-store.repo";
+import { Db } from "../repositories/process-store.repo";
 
 export interface ProcessData {
   status: "pending" | "ok" | "error";
   data?: any;
   error?: string;
-  startedAt: string;
-  updatedAt: string;
+  startedAt?: string;
+  updatedAt?: string;
 }
 
 /**
- * Create a new process store instance. The store is backed by an in-memory
- * Map and provides methods for saving, retrieving and removing processes.
- * The database write callback is optional and should be fire-and-forget.
+ * Create a new process store instance backed by the database.
+ * The store provides methods for saving, retrieving and removing processes.
  */
-export function createProcessStore(
-  dbWrite?: (correlationId: string, data: ProcessData) => Promise<void>
-) {
-  const store = new Map<string, ProcessData>();
-
+export function createProcessStore(db: Db) {
   return {
     /**
-     * Save or update a process in the store. Immediately updates the Map
-     * and asynchronously persists to database if provided.
+     * Save or update a process in the database. Performs an upsert operation.
      */
     async save(
       correlationId: string,
       data: Partial<ProcessData>
     ): Promise<void> {
-      const existing = store.get(correlationId);
+      // Fetch existing data if updating
+      const existing = await findProcessStore(db, correlationId);
       const now = new Date().toISOString();
+
       const updated: ProcessData = {
         status: data.status ?? existing?.status ?? "pending",
         data: data.data ?? existing?.data,
         error: data.error ?? existing?.error,
-        startedAt: existing?.startedAt ?? now,
-        updatedAt: now,
+        startedAt: data.startedAt ?? existing?.startedAt ?? now,
+        updatedAt: data.updatedAt ?? now,
       };
-      store.set(correlationId, updated);
 
-      // Fire-and-forget DB write
-      if (dbWrite) {
-        dbWrite(correlationId, updated).catch(() => {
-          // Errors already logged by the DB layer
-        });
-      }
+      await upsertProcessStore(db, correlationId, updated);
     },
 
     /**
-     * Get a process from the store by correlation ID.
+     * Get a process from the database by correlation ID.
      */
     async get(correlationId: string): Promise<ProcessData | undefined> {
-      return store.get(correlationId);
+      const result = await findProcessStore(db, correlationId);
+      return result ?? undefined;
     },
 
     /**
-     * Remove a process from the in-memory store. Typically called when
-     * a process completes to free memory.
+     * Remove a process from the database. Typically called when
+     * a process completes to clean up storage.
      */
     async remove(correlationId: string): Promise<void> {
-      store.delete(correlationId);
+      await deleteProcessStore(db, correlationId);
     },
 
     /**
-     * Get all processes currently in the store. Useful for debugging.
+     * Get all processes currently in the database. Useful for debugging.
      */
     async values(): Promise<
       Array<{ correlationId: string; data: ProcessData }>
     > {
-      return Array.from(store.entries()).map(([correlationId, data]) => ({
-        correlationId,
-        data,
-      }));
+      return await findAllProcessStore(db);
     },
   };
 }
